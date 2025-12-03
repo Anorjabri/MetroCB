@@ -2,59 +2,342 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Интерактивная карта метро — пример</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Интерактивная карта метро</title>
   <style>
-    :root{--w:1000px}
-    body{font-family:Inter,Segoe UI,Arial;margin:0;display:flex;gap:16px;height:100vh}
-    .sidebar{width:320px;padding:16px;box-shadow:0 0 8px rgba(0,0,0,.08);background:#fff;overflow:auto}
-    h1{font-size:18px;margin:0 0 12px}
-    label{display:block;margin:10px 0 6px;font-size:13px}
-    select,button{width:100%;padding:8px;font-size:14px}
-    .mapwrap{flex:1;display:flex;align-items:center;justify-content:center;background:#e9f6f6}
-    .map{position:relative;max-width:calc(var(--w));width:100%;height:calc(var(--w) * 1.02); /* keep near-square */overflow:hidden;border-radius:8px}
-    .map img{width:100%;height:100%;object-fit:cover;display:block;transform-origin:0 0}
-    /* svg overlay covers map area */
-    svg.overlay{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
-    .station{pointer-events:auto}
-    .station circle{stroke:#222;stroke-width:2}
-    .station text{font-size:12px;pointer-events:none}
-    .controls-row{display:flex;gap:8px;margin-top:8px}
-    .hint{font-size:12px;color:#555;margin-top:10px}
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    .header {
+      background: #fff;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e0e0e0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    
+    h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 4px;
+    }
+    
+    .header p {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.4;
+    }
+    
+    .controls {
+      background: #fff;
+      padding: 16px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .station-select {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .select-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    
+    .select-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #555;
+    }
+    
+    select {
+      width: 100%;
+      padding: 12px;
+      font-size: 15px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #fff;
+      appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 16px;
+    }
+    
+    .buttons {
+      display: flex;
+      gap: 8px;
+    }
+    
+    button {
+      flex: 1;
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 500;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    #build {
+      background: #007AFF;
+      color: white;
+    }
+    
+    #build:active {
+      background: #0056CC;
+      transform: scale(0.98);
+    }
+    
+    #reset {
+      background: #f0f0f0;
+      color: #333;
+    }
+    
+    #reset:active {
+      background: #e0e0e0;
+      transform: scale(0.98);
+    }
+    
+    .map-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #e9f6f6;
+      touch-action: pan-x pan-y;
+    }
+    
+    .map {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+    
+    .map img {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transform-origin: 0 0;
+      touch-action: none;
+    }
+    
+    svg.overlay {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    
+    .station {
+      pointer-events: auto;
+    }
+    
+    .station circle {
+      stroke: #222;
+      stroke-width: 2;
+    }
+    
+    .station text {
+      font-size: 10px;
+      pointer-events: none;
+    }
+    
+    .instructions {
+      padding: 12px 16px;
+      font-size: 12px;
+      color: #666;
+      background: #fff;
+      border-top: 1px solid #e0e0e0;
+      line-height: 1.4;
+    }
+    
+    .hint {
+      color: #007AFF;
+      font-weight: 500;
+    }
+    
+    /* Анимация для пути */
+    @keyframes pulse {
+      0% { opacity: 0.8; }
+      50% { opacity: 1; }
+      100% { opacity: 0.8; }
+    }
+    
+    .path-line {
+      animation: pulse 2s infinite;
+    }
+    
+    /* Модальное окно для информации */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal-content {
+      background: white;
+      margin: 20px;
+      padding: 20px;
+      border-radius: 12px;
+      max-width: 400px;
+    }
+    
+    .modal-buttons {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 20px;
+      gap: 10px;
+    }
+    
+    .modal-ok {
+      padding: 10px 20px;
+      background: #007AFF;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 15px;
+    }
+    
+    /* Адаптивность */
+    @media (max-width: 480px) {
+      .header {
+        padding: 10px 12px;
+      }
+      
+      h1 {
+        font-size: 16px;
+      }
+      
+      .controls {
+        padding: 12px;
+      }
+      
+      button {
+        padding: 12px;
+        font-size: 14px;
+      }
+      
+      .instructions {
+        padding: 10px 12px;
+        font-size: 11px;
+      }
+    }
+    
+    @media (min-width: 768px) {
+      body {
+        flex-direction: row;
+      }
+      
+      .sidebar {
+        width: 320px;
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid #e0e0e0;
+        overflow: auto;
+      }
+      
+      .header {
+        box-shadow: none;
+        position: static;
+      }
+      
+      .controls {
+        border-bottom: none;
+      }
+      
+      .instructions {
+        border-top: none;
+        border-bottom: 1px solid #e0e0e0;
+      }
+      
+      .map-container {
+        flex: 1;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="sidebar">
-    <h1>Метрополитен КБ</h1>
-    <p>Выберите начальную и конечную станции и нажмите <b>Построить</b>. Карта берёт координаты станций и прокладывает кратчайший путь по заданным рёбрам (фрагмент графа для примера).</p>
-
-    <label for="from">Откуда</label>
-    <select id="from"></select>
-
-    <label for="to">Куда</label>
-    <select id="to"></select>
-
-    <div class="controls-row">
-      <button id="build">Построить маршрут</button>
-      <button id="reset">Сброс</button>
+    <div class="header">
+      <h1>Метрополитен КБ</h1>
+      <p>Выберите станции и постройте маршрут. Нажмите на станцию на карте для выбора.</p>
     </div>
-
-    <div class="hint">Клик по станции — назначить начальную/конечную.</div>
-    <hr />
-    <p style="font-size:13px;color:#666">Примечание: это демонстрация того шо может быть.</p>
+    
+    <div class="controls">
+      <div class="station-select">
+        <div class="select-group">
+          <div class="select-label">Откуда</div>
+          <select id="from"></select>
+        </div>
+        
+        <div class="select-group">
+          <div class="select-label">Куда</div>
+          <select id="to"></select>
+        </div>
+      </div>
+      
+      <div class="buttons">
+        <button id="build">Построить маршрут</button>
+        <button id="reset">Сброс</button>
+      </div>
+    </div>
+    
+    <div class="instructions">
+      <span class="hint">Совет:</span> Для перемещения по карте — проведите пальцем. Для масштабирования — сведите/разведите пальцы.
+    </div>
   </div>
-
-  <div class="mapwrap">
+  
+  <div class="map-container" id="mapContainer">
     <div class="map" id="map">
-      <img id="mapimg" src="metro.png" alt="metro map" />
-      <!-- viewBox размер можно подогнать под реальную картинку; по умолчанию 0..1000 x 0..1020 -->
-      <svg class="overlay" id="overlay" viewBox="0 0 1000 1020" preserveAspectRatio="none"></svg>
+      <img id="mapimg" src="metro.png" alt="Карта метро" />
+      <svg class="overlay" id="overlay" viewBox="0 0 1000 1020" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+  </div>
+  
+  <div class="modal" id="errorModal">
+    <div class="modal-content">
+      <div id="modalMessage">Сообщение</div>
+      <div class="modal-buttons">
+        <button class="modal-ok">OK</button>
+      </div>
     </div>
   </div>
 
 <script>
-// --- Данные: список станций с координатами в системе SVG viewBox (0..1000, 0..1020)
-// Координаты приближены — при необходимости подгоните под вашу картинку.
+// --- Данные: список станций с координатами
 const stations = [
   { id: 'capital', name: 'Capital', x: 900/1.517, y: 600/1.744 },
   { id: 'akad_center', name: 'Академическая (Центр)', x: 1000/1.517, y: 1030/1.744 },
@@ -63,160 +346,420 @@ const stations = [
   { id: 'akad_south', name: 'Академ (Строится)', x: 1300/1.517, y: 1550/1.744 }
 ];
 
-// Рёбра — какие станции соединены напрямую (без пересадок) и цвет линии
+// Рёбра — какие станции соединены напрямую
 const edges = [
-  { from: 'capital', to: 'akad_center', color: '#c8102e' }, // красная
-  { from: 'akad_center', to: 'danusha', color: '#000000' }, // чёрная
-  { from: 'akad_center', to: 'akad_east', color: '#e67e22' }  // оранжевая
+  { from: 'capital', to: 'akad_center', color: '#c8102e' },
+  { from: 'akad_center', to: 'danusha', color: '#000000' },
+  { from: 'akad_center', to: 'akad_east', color: '#e67e22' }
 ];
 
-// Полезные структуры
-const stationById = Object.fromEntries(stations.map(s=>[s.id,s]));
+// Подготовка структур данных
+const stationById = Object.fromEntries(stations.map(s => [s.id, s]));
 const adj = {};
-stations.forEach(s=>adj[s.id]=[]);
-// --- ВНИМАНИЕ: edges это массив объектов, поэтому деструктурируем как объект
-edges.forEach(({from, to})=>{
+stations.forEach(s => adj[s.id] = []);
+edges.forEach(({from, to}) => {
   const sa = stationById[from], sb = stationById[to];
-  if(!sa || !sb) return; // защита от некорректных id
+  if (!sa || !sb) return;
   const dist = Math.hypot(sa.x - sb.x, sa.y - sb.y);
-  adj[from].push({to, w:dist});
-  adj[to].push({to:from, w:dist});
+  adj[from].push({to, w: dist});
+  adj[to].push({to: from, w: dist});
 });
 
-// UI refs
+// Элементы UI
 const fromSel = document.getElementById('from');
 const toSel = document.getElementById('to');
 const overlay = document.getElementById('overlay');
 const buildBtn = document.getElementById('build');
 const resetBtn = document.getElementById('reset');
+const errorModal = document.getElementById('errorModal');
+const modalMessage = document.getElementById('modalMessage');
+const modalOk = document.querySelector('.modal-ok');
 
-// fill selects
-for(const s of stations){
-  const o1 = document.createElement('option'); o1.value=s.id; o1.textContent=s.name; fromSel.appendChild(o1);
-  const o2 = document.createElement('option'); o2.value=s.id; o2.textContent=s.name; toSel.appendChild(o2);
-}
-fromSel.selectedIndex = 0; toSel.selectedIndex = stations.length-1;
+// Заполняем выпадающие списки
+stations.forEach(s => {
+  const option1 = document.createElement('option');
+  option1.value = s.id;
+  option1.textContent = s.name;
+  fromSel.appendChild(option1);
+  
+  const option2 = document.createElement('option');
+  option2.value = s.id;
+  option2.textContent = s.name;
+  toSel.appendChild(option2);
+});
 
-// helper: get edge color between two stations (or default)
-function getEdgeColor(a,b){
-  const e = edges.find(e=> (e.from===a && e.to===b) || (e.from===b && e.to===a));
+// Утилиты
+function getEdgeColor(a, b) {
+  const e = edges.find(e => 
+    (e.from === a && e.to === b) || 
+    (e.from === b && e.to === a)
+  );
   return e ? e.color : '#bbb';
 }
 
-// draw map elements
-function drawBase(){
+function showModal(message) {
+  modalMessage.textContent = message;
+  errorModal.style.display = 'flex';
+}
+
+// Рисуем базовую карту
+function drawBase() {
   overlay.innerHTML = '';
-  // draw edges (base lines)
-  for(const e of edges){
-    const sa = stationById[e.from], sb = stationById[e.to];
-    if(!sa || !sb) continue;
-    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-    line.setAttribute('x1',sa.x); line.setAttribute('y1',sa.y);
-    line.setAttribute('x2',sb.x); line.setAttribute('y2',sb.y);
-    line.setAttribute('stroke', e.color || '#bbb'); line.setAttribute('stroke-width','12'); line.setAttribute('stroke-linecap','round');
+  
+  // Рисуем линии метро
+  edges.forEach(e => {
+    const sa = stationById[e.from];
+    const sb = stationById[e.to];
+    if (!sa || !sb) return;
+    
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', sa.x);
+    line.setAttribute('y1', sa.y);
+    line.setAttribute('x2', sb.x);
+    line.setAttribute('y2', sb.y);
+    line.setAttribute('stroke', e.color || '#bbb');
+    line.setAttribute('stroke-width', '12');
+    line.setAttribute('stroke-linecap', 'round');
     overlay.appendChild(line);
-  }
-  // draw stations
-  for(const s of stations){
-    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
-    g.setAttribute('class','station'); g.dataset.id = s.id;
-    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
-    circle.setAttribute('cx',s.x); circle.setAttribute('cy',s.y); circle.setAttribute('r',9);
-    circle.setAttribute('fill','#fff');
-    const text = document.createElementNS('http://www.w3.org/2000/svg','text');
-    text.setAttribute('x',s.x+14); text.setAttribute('y',s.y+4); text.textContent = s.name;
-    g.appendChild(circle); g.appendChild(text);
+  });
+  
+  // Рисуем станции
+  stations.forEach(s => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'station');
+    g.dataset.id = s.id;
+    
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', s.x);
+    circle.setAttribute('cy', s.y);
+    circle.setAttribute('r', '8');
+    circle.setAttribute('fill', '#fff');
+    circle.setAttribute('stroke', '#222');
+    circle.setAttribute('stroke-width', '2');
+    
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', s.x + 14);
+    text.setAttribute('y', s.y + 4);
+    text.setAttribute('font-size', '10');
+    text.textContent = s.name;
+    
+    g.appendChild(circle);
+    g.appendChild(text);
     overlay.appendChild(g);
-    // make stations clickable to set from/to
-    g.style.cursor = 'pointer';
-    g.addEventListener('click',()=>{
-      // простое поведение: первый клик — from, второй — to
-      if(!window._lastClickedFrom){ fromSel.value = s.id; window._lastClickedFrom = true; }
-      else { toSel.value = s.id; window._lastClickedFrom = false; }
+    
+    // Клик по станции
+    g.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const id = this.dataset.id;
+      
+      // Переключаем между начальной и конечной
+      if (fromSel.value === id) {
+        fromSel.value = '';
+      } else if (toSel.value === id) {
+        toSel.value = '';
+      } else if (!fromSel.value) {
+        fromSel.value = id;
+      } else if (!toSel.value) {
+        toSel.value = id;
+      } else {
+        // Если оба выбраны, заменяем начальную
+        fromSel.value = id;
+      }
+      
+      // Подсвечиваем выбранные станции
+      highlightSelectedStations();
     });
+  });
+  
+  highlightSelectedStations();
+}
+
+// Подсветка выбранных станций
+function highlightSelectedStations() {
+  // Сначала убираем старую подсветку
+  overlay.querySelectorAll('.selected-station').forEach(el => el.remove());
+  
+  // Подсвечиваем начальную станцию
+  if (fromSel.value) {
+    const s = stationById[fromSel.value];
+    if (s) {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', s.x);
+      circle.setAttribute('cy', s.y);
+      circle.setAttribute('r', '11');
+      circle.setAttribute('fill', 'none');
+      circle.setAttribute('stroke', '#007AFF');
+      circle.setAttribute('stroke-width', '3');
+      circle.setAttribute('class', 'selected-station');
+      overlay.appendChild(circle);
+    }
+  }
+  
+  // Подсвечиваем конечную станцию
+  if (toSel.value) {
+    const s = stationById[toSel.value];
+    if (s) {
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', s.x);
+      circle.setAttribute('cy', s.y);
+      circle.setAttribute('r', '11');
+      circle.setAttribute('fill', 'none');
+      circle.setAttribute('stroke', '#FF3B30');
+      circle.setAttribute('stroke-width', '3');
+      circle.setAttribute('class', 'selected-station');
+      overlay.appendChild(circle);
+    }
   }
 }
 
-// shortest path (Dijkstra)
-function shortestPath(start, goal){
-  if(!adj[start] || !adj[goal]) return null;
+// Алгоритм Дейкстры
+function shortestPath(start, goal) {
+  if (!adj[start] || !adj[goal]) return null;
+  
   const Q = new Set(Object.keys(adj));
-  const dist = {}; const prev = {};
-  for(const v of Q){ dist[v]=Infinity; prev[v]=null; }
-  dist[start]=0;
-  while(Q.size){
-    // pick min
-    let u=null; let best=Infinity;
-    for(const v of Q) if(dist[v]<best){best=dist[v]; u=v}
-    if(u===null) break;
+  const dist = {};
+  const prev = {};
+  
+  for (const v of Q) {
+    dist[v] = Infinity;
+    prev[v] = null;
+  }
+  dist[start] = 0;
+  
+  while (Q.size > 0) {
+    let u = null;
+    let best = Infinity;
+    
+    for (const v of Q) {
+      if (dist[v] < best) {
+        best = dist[v];
+        u = v;
+      }
+    }
+    
+    if (u === null) break;
     Q.delete(u);
-    if(u===goal) break;
-    for(const e of adj[u]){
+    
+    if (u === goal) break;
+    
+    for (const e of adj[u]) {
       const alt = dist[u] + e.w;
-      if(alt < dist[e.to]){ dist[e.to]=alt; prev[e.to]=u; }
+      if (alt < dist[e.to]) {
+        dist[e.to] = alt;
+        prev[e.to] = u;
+      }
     }
   }
-  // reconstruct
-  if(dist[goal]===Infinity) return null;
-  const path=[]; let cur = goal;
-  while(cur){ path.push(cur); cur=prev[cur]; }
+  
+  if (dist[goal] === Infinity) return null;
+  
+  const path = [];
+  let cur = goal;
+  while (cur) {
+    path.push(cur);
+    cur = prev[cur];
+  }
   return path.reverse();
 }
 
-function highlightPath(path){
-  if(!path || path.length<2) return;
-  // draw highlighted lines using original edge colors where possible
-  for(let i=0;i<path.length-1;i++){
-    const a = stationById[path[i]], b = stationById[path[i+1]];
-    if(!a || !b) continue;
-    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-    line.setAttribute('x1',a.x); line.setAttribute('y1',a.y);
-    line.setAttribute('x2',b.x); line.setAttribute('y2',b.y);
-    line.setAttribute('stroke', getEdgeColor(a.id, b.id) || '#d84d3d');
-    line.setAttribute('stroke-width','10'); line.setAttribute('stroke-linecap','round');
+// Подсветка пути
+function highlightPath(path) {
+  if (!path || path.length < 2) return;
+  
+  // Рисуем подсвеченный путь
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = stationById[path[i]];
+    const b = stationById[path[i + 1]];
+    if (!a || !b) continue;
+    
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', a.x);
+    line.setAttribute('y1', a.y);
+    line.setAttribute('x2', b.x);
+    line.setAttribute('y2', b.y);
+    line.setAttribute('stroke', getEdgeColor(a.id, b.id) || '#FF9500');
+    line.setAttribute('stroke-width', '10');
+    line.setAttribute('stroke-linecap', 'round');
+    line.setAttribute('class', 'path-line');
     overlay.appendChild(line);
   }
-  // mark nodes
-  for(const id of path){
+  
+  // Подсвечиваем станции на пути
+  path.forEach(id => {
     const s = stationById[id];
-    if(!s) continue;
-    const circ = document.createElementNS('http://www.w3.org/2000/svg','circle');
-    circ.setAttribute('cx',s.x); circ.setAttribute('cy',s.y); circ.setAttribute('r',10);
-    circ.setAttribute('fill','#fff'); circ.setAttribute('stroke','#222'); circ.setAttribute('stroke-width','2');
-    overlay.appendChild(circ);
-  }
+    if (!s) return;
+    
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', s.x);
+    circle.setAttribute('cy', s.y);
+    circle.setAttribute('r', '9');
+    circle.setAttribute('fill', '#fff');
+    circle.setAttribute('stroke', '#222');
+    circle.setAttribute('stroke-width', '3');
+    overlay.appendChild(circle);
+  });
 }
 
-buildBtn.addEventListener('click',()=>{
-  const start = fromSel.value, goal = toSel.value;
-  if(start===goal){ alert('Вы выбрали одну и ту же станцию'); return; }
+// Обработчики событий
+buildBtn.addEventListener('click', () => {
+  const start = fromSel.value;
+  const goal = toSel.value;
+  
+  if (!start || !goal) {
+    showModal('Пожалуйста, выберите обе станции');
+    return;
+  }
+  
+  if (start === goal) {
+    showModal('Вы выбрали одну и ту же станцию');
+    return;
+  }
+  
   drawBase();
   const path = shortestPath(start, goal);
-  if(!path){ alert('Путь не найден (в графе нет соединения)'); return; }
+  
+  if (!path) {
+    showModal('Путь не найден. Станции не соединены.');
+    return;
+  }
+  
   highlightPath(path);
 });
 
-resetBtn.addEventListener('click',()=>{ drawBase(); });
+resetBtn.addEventListener('click', () => {
+  fromSel.selectedIndex = 0;
+  toSel.selectedIndex = stations.length - 1;
+  drawBase();
+});
 
-// initial draw
+modalOk.addEventListener('click', () => {
+  errorModal.style.display = 'none';
+});
+
+errorModal.addEventListener('click', (e) => {
+  if (e.target === errorModal) {
+    errorModal.style.display = 'none';
+  }
+});
+
+// Мультитач для масштабирования и панорамирования
+let scale = 1;
+let offsetX = 0;
+let offsetY = 0;
+let lastTouchDistance = null;
+let lastTouchCenter = null;
+const mapImg = document.getElementById('mapimg');
+const map = document.getElementById('map');
+
+function applyTransform() {
+  mapImg.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+  overlay.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+}
+
+// Обработка касаний
+let isDragging = false;
+let startX, startY, startOffsetX, startOffsetY;
+
+map.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 1) {
+    isDragging = true;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    startOffsetX = offsetX;
+    startOffsetY = offsetY;
+    e.preventDefault();
+  } else if (e.touches.length === 2) {
+    // Начинаем масштабирование
+    const touch1 = e.touches[0];
+    const touch2 = e.touches[1];
+    lastTouchDistance = Math.hypot(
+      touch1.clientX - touch2.clientX,
+      touch1.clientY - touch2.clientY
+    );
+    lastTouchCenter = [
+      (touch1.clientX + touch2.clientX) / 2,
+      (touch1.clientY + touch2.clientY) / 2
+    ];
+    e.preventDefault();
+  }
+});
+
+map.addEventListener('touchmove', (e) => {
+  if (e.touches.length === 1 && isDragging) {
+    // Панорамирование
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    offsetX = startOffsetX + (currentX - startX);
+    offsetY = startOffsetY + (currentY - startY);
+    applyTransform();
+    e.preventDefault();
+  } else if (e.touches.length === 2) {
+    // Масштабирование
+    const touch1 = e.touches[0];
+    const touch2 = e.touches[1];
+    const currentDistance = Math.hypot(
+      touch1.clientX - touch2.clientX,
+      touch1.clientY - touch2.clientY
+    );
+    const currentCenter = [
+      (touch1.clientX + touch2.clientX) / 2,
+      (touch1.clientY + touch2.clientY) / 2
+    ];
+    
+    if (lastTouchDistance && lastTouchCenter) {
+      // Вычисляем новый масштаб
+      const deltaScale = currentDistance / lastTouchDistance;
+      const newScale = Math.min(3, Math.max(0.5, scale * deltaScale));
+      
+      // Корректируем позицию для сохранения центра масштабирования
+      const centerX = currentCenter[0] - map.getBoundingClientRect().left;
+      const centerY = currentCenter[1] - map.getBoundingClientRect().top;
+      
+      offsetX = centerX - (centerX - offsetX) * (newScale / scale);
+      offsetY = centerY - (centerY - offsetY) * (newScale / scale);
+      scale = newScale;
+      
+      applyTransform();
+    }
+    
+    lastTouchDistance = currentDistance;
+    lastTouchCenter = currentCenter;
+    e.preventDefault();
+  }
+});
+
+map.addEventListener('touchend', (e) => {
+  if (e.touches.length === 0) {
+    isDragging = false;
+    lastTouchDistance = null;
+    lastTouchCenter = null;
+  }
+});
+
+// Двойной тап для сброса масштаба
+let lastTap = 0;
+map.addEventListener('touchend', (e) => {
+  const currentTime = new Date().getTime();
+  const tapLength = currentTime - lastTap;
+  
+  if (tapLength < 300 && tapLength > 0) {
+    // Двойной тап - сброс масштаба и позиции
+    scale = 1;
+    offsetX = 0;
+    offsetY = 0;
+    applyTransform();
+    e.preventDefault();
+  }
+  lastTap = currentTime;
+});
+
+// Инициализация
 drawBase();
 
-// --- простая поддержка пан/зум
-const img = document.getElementById('mapimg');
-let scale=1, ox=0, oy=0, dragging=false, dragStart=null;
-const map = document.getElementById('map');
-function applyTransform(){ img.style.transform = `translate(${ox}px,${oy}px) scale(${scale})`; overlay.style.transform = `translate(${ox}px,${oy}px) scale(${scale})`; }
-map.addEventListener('wheel', (e)=>{
-  e.preventDefault();
-  const delta = -e.deltaY * 0.001; // zoom speed
-  const newScale = Math.min(4, Math.max(0.5, scale*(1+delta)));
-  // adjust origin so zoom feels natural (approx)
-  scale = newScale; applyTransform();
-});
-map.addEventListener('mousedown',(e)=>{ dragging=true; dragStart=[e.clientX - ox, e.clientY - oy]; map.style.cursor='grabbing'; });
-window.addEventListener('mousemove',(e)=>{ if(!dragging) return; ox = e.clientX - dragStart[0]; oy = e.clientY - dragStart[1]; applyTransform(); });
-window.addEventListener('mouseup',()=>{ dragging=false; map.style.cursor='default'; });
-
+// Автоматический выбор станций по умолчанию
+fromSel.selectedIndex = 0;
+toSel.selectedIndex = stations.length - 1;
+highlightSelectedStations();
 </script>
 </body>
 </html>
