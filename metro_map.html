@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Интерактивная карта метро — пример</title>
+  <style>
+    :root{--w:1000px}
+    body{font-family:Inter,Segoe UI,Arial;margin:0;display:flex;gap:16px;height:100vh}
+    .sidebar{width:320px;padding:16px;box-shadow:0 0 8px rgba(0,0,0,.08);background:#fff;overflow:auto}
+    h1{font-size:18px;margin:0 0 12px}
+    label{display:block;margin:10px 0 6px;font-size:13px}
+    select,button{width:100%;padding:8px;font-size:14px}
+    .mapwrap{flex:1;display:flex;align-items:center;justify-content:center;background:#e9f6f6}
+    .map{position:relative;max-width:calc(var(--w));width:100%;height:calc(var(--w) * 1.02); /* keep near-square */overflow:hidden;border-radius:8px}
+    .map img{width:100%;height:100%;object-fit:cover;display:block;transform-origin:0 0}
+    /* svg overlay covers map area */
+    svg.overlay{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+    .station{pointer-events:auto}
+    .station circle{stroke:#222;stroke-width:2}
+    .station text{font-size:12px;pointer-events:none}
+    .controls-row{display:flex;gap:8px;margin-top:8px}
+    .hint{font-size:12px;color:#555;margin-top:10px}
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <h1>Метрополитен КБ</h1>
+    <p>Выберите начальную и конечную станции и нажмите <b>Построить</b>. Карта берёт координаты станций и прокладывает кратчайший путь по заданным рёбрам (фрагмент графа для примера).</p>
+
+    <label for="from">Откуда</label>
+    <select id="from"></select>
+
+    <label for="to">Куда</label>
+    <select id="to"></select>
+
+    <div class="controls-row">
+      <button id="build">Построить маршрут</button>
+      <button id="reset">Сброс</button>
+    </div>
+
+    <div class="hint">Клик по станции — назначить начальную/конечную.</div>
+    <hr />
+    <p style="font-size:13px;color:#666">Примечание: это демонстрация того шо может быть.</p>
+  </div>
+
+  <div class="mapwrap">
+    <div class="map" id="map">
+      <img id="mapimg" src="metro.png" alt="metro map" />
+      <!-- viewBox размер можно подогнать под реальную картинку; по умолчанию 0..1000 x 0..1020 -->
+      <svg class="overlay" id="overlay" viewBox="0 0 1000 1020" preserveAspectRatio="none"></svg>
+    </div>
+  </div>
+
+<script>
+// --- Данные: список станций с координатами в системе SVG viewBox (0..1000, 0..1020)
+// Координаты приближены — при необходимости подгоните под вашу картинку.
+const stations = [
+  { id: 'capital', name: 'Capital', x: 900/1.517, y: 600/1.744 },
+  { id: 'akad_center', name: 'Академическая (Центр)', x: 1000/1.517, y: 1030/1.744 },
+  { id: 'danusha', name: 'ДанюшаТаун', x: 750/1.517, y: 1180/1.744 },
+  { id: 'akad_east', name: 'Академ', x: 1220/1.517, y: 1380/1.744 },
+  { id: 'akad_south', name: 'Академ (Строится)', x: 1300/1.517, y: 1550/1.744 }
+];
+
+// Рёбра — какие станции соединены напрямую (без пересадок) и цвет линии
+const edges = [
+  { from: 'capital', to: 'akad_center', color: '#c8102e' }, // красная
+  { from: 'akad_center', to: 'danusha', color: '#000000' }, // чёрная
+  { from: 'akad_center', to: 'akad_east', color: '#e67e22' }  // оранжевая
+];
+
+// Полезные структуры
+const stationById = Object.fromEntries(stations.map(s=>[s.id,s]));
+const adj = {};
+stations.forEach(s=>adj[s.id]=[]);
+// --- ВНИМАНИЕ: edges это массив объектов, поэтому деструктурируем как объект
+edges.forEach(({from, to})=>{
+  const sa = stationById[from], sb = stationById[to];
+  if(!sa || !sb) return; // защита от некорректных id
+  const dist = Math.hypot(sa.x - sb.x, sa.y - sb.y);
+  adj[from].push({to, w:dist});
+  adj[to].push({to:from, w:dist});
+});
+
+// UI refs
+const fromSel = document.getElementById('from');
+const toSel = document.getElementById('to');
+const overlay = document.getElementById('overlay');
+const buildBtn = document.getElementById('build');
+const resetBtn = document.getElementById('reset');
+
+// fill selects
+for(const s of stations){
+  const o1 = document.createElement('option'); o1.value=s.id; o1.textContent=s.name; fromSel.appendChild(o1);
+  const o2 = document.createElement('option'); o2.value=s.id; o2.textContent=s.name; toSel.appendChild(o2);
+}
+fromSel.selectedIndex = 0; toSel.selectedIndex = stations.length-1;
+
+// helper: get edge color between two stations (or default)
+function getEdgeColor(a,b){
+  const e = edges.find(e=> (e.from===a && e.to===b) || (e.from===b && e.to===a));
+  return e ? e.color : '#bbb';
+}
+
+// draw map elements
+function drawBase(){
+  overlay.innerHTML = '';
+  // draw edges (base lines)
+  for(const e of edges){
+    const sa = stationById[e.from], sb = stationById[e.to];
+    if(!sa || !sb) continue;
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',sa.x); line.setAttribute('y1',sa.y);
+    line.setAttribute('x2',sb.x); line.setAttribute('y2',sb.y);
+    line.setAttribute('stroke', e.color || '#bbb'); line.setAttribute('stroke-width','12'); line.setAttribute('stroke-linecap','round');
+    overlay.appendChild(line);
+  }
+  // draw stations
+  for(const s of stations){
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','station'); g.dataset.id = s.id;
+    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circle.setAttribute('cx',s.x); circle.setAttribute('cy',s.y); circle.setAttribute('r',9);
+    circle.setAttribute('fill','#fff');
+    const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+    text.setAttribute('x',s.x+14); text.setAttribute('y',s.y+4); text.textContent = s.name;
+    g.appendChild(circle); g.appendChild(text);
+    overlay.appendChild(g);
+    // make stations clickable to set from/to
+    g.style.cursor = 'pointer';
+    g.addEventListener('click',()=>{
+      // простое поведение: первый клик — from, второй — to
+      if(!window._lastClickedFrom){ fromSel.value = s.id; window._lastClickedFrom = true; }
+      else { toSel.value = s.id; window._lastClickedFrom = false; }
+    });
+  }
+}
+
+// shortest path (Dijkstra)
+function shortestPath(start, goal){
+  if(!adj[start] || !adj[goal]) return null;
+  const Q = new Set(Object.keys(adj));
+  const dist = {}; const prev = {};
+  for(const v of Q){ dist[v]=Infinity; prev[v]=null; }
+  dist[start]=0;
+  while(Q.size){
+    // pick min
+    let u=null; let best=Infinity;
+    for(const v of Q) if(dist[v]<best){best=dist[v]; u=v}
+    if(u===null) break;
+    Q.delete(u);
+    if(u===goal) break;
+    for(const e of adj[u]){
+      const alt = dist[u] + e.w;
+      if(alt < dist[e.to]){ dist[e.to]=alt; prev[e.to]=u; }
+    }
+  }
+  // reconstruct
+  if(dist[goal]===Infinity) return null;
+  const path=[]; let cur = goal;
+  while(cur){ path.push(cur); cur=prev[cur]; }
+  return path.reverse();
+}
+
+function highlightPath(path){
+  if(!path || path.length<2) return;
+  // draw highlighted lines using original edge colors where possible
+  for(let i=0;i<path.length-1;i++){
+    const a = stationById[path[i]], b = stationById[path[i+1]];
+    if(!a || !b) continue;
+    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+    line.setAttribute('x1',a.x); line.setAttribute('y1',a.y);
+    line.setAttribute('x2',b.x); line.setAttribute('y2',b.y);
+    line.setAttribute('stroke', getEdgeColor(a.id, b.id) || '#d84d3d');
+    line.setAttribute('stroke-width','10'); line.setAttribute('stroke-linecap','round');
+    overlay.appendChild(line);
+  }
+  // mark nodes
+  for(const id of path){
+    const s = stationById[id];
+    if(!s) continue;
+    const circ = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    circ.setAttribute('cx',s.x); circ.setAttribute('cy',s.y); circ.setAttribute('r',10);
+    circ.setAttribute('fill','#fff'); circ.setAttribute('stroke','#222'); circ.setAttribute('stroke-width','2');
+    overlay.appendChild(circ);
+  }
+}
+
+buildBtn.addEventListener('click',()=>{
+  const start = fromSel.value, goal = toSel.value;
+  if(start===goal){ alert('Вы выбрали одну и ту же станцию'); return; }
+  drawBase();
+  const path = shortestPath(start, goal);
+  if(!path){ alert('Путь не найден (в графе нет соединения)'); return; }
+  highlightPath(path);
+});
+
+resetBtn.addEventListener('click',()=>{ drawBase(); });
+
+// initial draw
+drawBase();
+
+// --- простая поддержка пан/зум
+const img = document.getElementById('mapimg');
+let scale=1, ox=0, oy=0, dragging=false, dragStart=null;
+const map = document.getElementById('map');
+function applyTransform(){ img.style.transform = `translate(${ox}px,${oy}px) scale(${scale})`; overlay.style.transform = `translate(${ox}px,${oy}px) scale(${scale})`; }
+map.addEventListener('wheel', (e)=>{
+  e.preventDefault();
+  const delta = -e.deltaY * 0.001; // zoom speed
+  const newScale = Math.min(4, Math.max(0.5, scale*(1+delta)));
+  // adjust origin so zoom feels natural (approx)
+  scale = newScale; applyTransform();
+});
+map.addEventListener('mousedown',(e)=>{ dragging=true; dragStart=[e.clientX - ox, e.clientY - oy]; map.style.cursor='grabbing'; });
+window.addEventListener('mousemove',(e)=>{ if(!dragging) return; ox = e.clientX - dragStart[0]; oy = e.clientY - dragStart[1]; applyTransform(); });
+window.addEventListener('mouseup',()=>{ dragging=false; map.style.cursor='default'; });
+
+</script>
+</body>
+</html>
