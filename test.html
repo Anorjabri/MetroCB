@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Метрополитен — прототип</title>
+<style>
+  :root{
+    --bg:#0e0f10;
+    --panel:#111214cc;
+    --muted:#9aa0a6;
+    --accent:#00c2a8;
+    --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  }
+  html,body{height:100%;margin:0;background:var(--bg);font-family:var(--font-sans);color:#fff}
+  .app {
+    display:flex;gap:16px;height:100vh;padding:16px;box-sizing:border-box;
+  }
+  .map-wrap {
+    flex:1; position:relative; overflow:hidden; border-radius:12px;
+    background:linear-gradient(180deg,#0b0c0d 0%, #0d0e10 100%);
+    box-shadow: 0 6px 30px rgba(0,0,0,.6);
+  }
+  /* top left floating clock */
+  .top-left {
+    position:absolute;left:14px;top:14px;font-weight:700;font-size:20px;color:#fff;opacity:.95;
+    display:flex;gap:8px;align-items:center;
+  }
+  .controls {
+    position:absolute; right:14px; top:14px; display:flex; flex-direction:column; gap:8px;
+  }
+  .controls button { background:var(--panel);border:0;color:#fff;padding:8px;border-radius:8px;cursor:pointer; }
+  .panel {
+    width:340px; max-width:35%; background:var(--panel); border-radius:12px; padding:12px; box-sizing:border-box;
+    display:flex;flex-direction:column; gap:8px;
+  }
+  .row{display:flex;gap:8px;align-items:center;}
+  .select{
+    flex:1;padding:10px;border-radius:10px;background:#0b0b0b;border:1px solid rgba(255,255,255,.06);color:#fff;
+  }
+  .btn {padding:10px;border-radius:10px;border:0;background:var(--accent); color:#04110f; font-weight:700; cursor:pointer;}
+  .legend {display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;font-size:13px;color:var(--muted)}
+  .legend .item{display:flex;gap:8px;align-items:center}
+  .legend .dot{width:16px;height:6px;border-radius:4px}
+  footer{margin-top:auto;color:var(--muted);font-size:13px}
+  /* SVG map styling */
+  svg { width:100%; height:100%; touch-action: none; user-select:none; display:block;}
+  .line { fill:none; stroke-width:6; stroke-linecap:round; stroke-linejoin:round; opacity:.95; filter: drop-shadow(0 2px 6px rgba(0,0,0,.8)); }
+  .station { fill:#fff; stroke:#111; stroke-width:1.5; cursor:pointer; }
+  .station-label { font-size:12px; fill:#dfe6ea; pointer-events:none; font-weight:600; text-shadow:0 1px 1px rgba(0,0,0,.5) }
+  .station-small { r:4.5 }
+  .station-transfer { r:6.5; stroke-width:2.2; }
+  .route-line { fill:none; stroke:#fff; stroke-width:10; stroke-linecap:round; opacity:.95; }
+  .route-line.overlay { mix-blend-mode:screen; opacity:.98; }
+  .hidden { display:none; }
+  /* tooltip */
+  .tooltip {
+    position:absolute;pointer-events:none;background:#111;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.04);
+    color:#fff;font-size:13px;transform:translate(-50%,-140%);white-space:nowrap;
+  }
+
+  /* small screens */
+  @media(max-width:900px){
+    .app {flex-direction:column;padding:12px;}
+    .panel{width:100%;max-width:100%}
+    .map-wrap{height:60vh;border-radius:10px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="map-wrap" id="mapWrap">
+    <div class="top-left" id="clock">08:47</div>
+    <div class="controls">
+      <button id="resetView">Reset view</button>
+      <button id="zoomIn">Zoom +</button>
+      <button id="zoomOut">Zoom −</button>
+    </div>
+
+    <div id="tooltip" class="tooltip hidden"></div>
+
+    <!-- SVG карта -->
+    <svg id="mapSvg" viewBox="-200 -200 1200 1200" preserveAspectRatio="xMidYMid meet">
+      <g id="mapGroup">
+        <!-- линии и станции будут отрисованы JS -->
+      </g>
+      <!-- маршрут (поверх) -->
+      <g id="routeGroup"></g>
+    </svg>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <select id="fromSelect" class="select"></select>
+      <select id="toSelect" class="select"></select>
+    </div>
+    <div class="row">
+      <button id="findRoute" class="btn">Построить маршрут</button>
+      <button id="clearRoute" class="btn" style="background:#575757">Очистить</button>
+    </div>
+
+    <div class="legend" id="legend"></div>
+
+    <footer>Добавляй станции и линии в объект <code>stations</code> и <code>lines</code> в коде ниже.</footer>
+  </div>
+</div>
+
+<script>
+/* ==========================
+   Данные карты (добавляй сюда новые линии и станции)
+   Простая, понятная структура:
+   stations: id -> {id,name,x,y}
+   lines: [{id,name,color,stations:[id1,id2,...]}]
+   ========================== */
+
+const stations = {
+  // sample stations (координаты в условных единицах)
+  s1: { id:'s1', name:'Академическая', x:400, y:400 },
+  s2: { id:'s2', name:'Профсоюзная', x:400, y:520 },
+  s3: { id:'s3', name:'Новые Черёмушки', x:400, y:660 },
+  s4: { id:'s4', name:'Калужская', x:400, y:820 },
+
+  s5: { id:'s5', name:'Крымская', x:320, y:480 },
+  s6: { id:'s6', name:'Верхние Котлы', x:460, y:300 },
+
+  s7: { id:'s7', name:'Capital', x:400, y:50 },
+  s8: { id:'s8', name:'ДаношаТаун', x:220, y:360 },
+};
+
+const lines = [
+  { id:'orange', name:'Оранжевая', color:'#ff8a00', stations:['s1','s2','s3','s4'] },
+  { id:'red', name:'Красная', color:'#d62828', stations:['s7','s1'] },
+  { id:'black', name:'Чёрная', color:'#222222', stations:['s8','s1','s5'] },
+];
+
+/* ==========================
+   Конец данных
+   ========================== */
+
+/* ---- Вспомогательные структуры графа (маршруты) ---- */
+const graph = {}; // adjacency list
+function buildGraph(){
+  Object.keys(stations).forEach(id => graph[id] = new Set());
+  lines.forEach(line=>{
+    for(let i=0;i<line.stations.length-1;i++){
+      const a=line.stations[i], b=line.stations[i+1];
+      graph[a].add(b); graph[b].add(a);
+    }
+  });
+}
+buildGraph();
+
+/* ---- Рендеринг SVG ---- */
+const svgNS = "http://www.w3.org/2000/svg";
+const mapGroup = document.getElementById('mapGroup');
+const routeGroup = document.getElementById('routeGroup');
+
+function clearMap(){ mapGroup.innerHTML=''; routeGroup.innerHTML=''; }
+function renderMap(){
+  clearMap();
+
+  // сначала линии (плавные кривые)
+  lines.forEach(line=>{
+    const gLine = document.createElementNS(svgNS,'g');
+    gLine.setAttribute('data-line', line.id);
+
+    const path = document.createElementNS(svgNS,'path');
+    path.classList.add('line');
+    path.setAttribute('stroke', line.color);
+
+    // generate path through station coordinates (smooth polyline using Catmull-Rom -> cubic Bezier)
+    const pts = line.stations.map(id=>stations[id]);
+    const d = smoothPathD(pts);
+    path.setAttribute('d', d);
+    gLine.appendChild(path);
+    mapGroup.appendChild(gLine);
+  });
+
+  // потом станции (чтобы были поверх линий)
+  Object.values(stations).forEach(st=>{
+    const g = document.createElementNS(svgNS,'g');
+    g.setAttribute('transform', `translate(${st.x},${st.y})`);
+    g.classList.add('station-node');
+    g.dataset.id = st.id;
+
+    // determine if transfer: station appears on multiple lines
+    const lineCount = lines.filter(l => l.stations.includes(st.id)).length;
+    const circle = document.createElementNS(svgNS,'circle');
+    circle.classList.add('station');
+    circle.classList.add(lineCount>1 ? 'station-transfer' : 'station-small');
+    circle.setAttribute('r', lineCount>1 ? 6.5 : 4.5);
+    circle.setAttribute('fill','#fff');
+    g.appendChild(circle);
+
+    // label (to the right by default)
+    const text = document.createElementNS(svgNS,'text');
+    text.classList.add('station-label');
+    text.setAttribute('x', 12);
+    text.setAttribute('y', 4);
+    text.textContent = st.name;
+    g.appendChild(text);
+
+    // events
+    g.addEventListener('mouseenter', (e)=> showTooltip(e, st.name));
+    g.addEventListener('mouseleave', hideTooltip);
+    g.addEventListener('click', ()=> onStationClick(st.id));
+
+    mapGroup.appendChild(g);
+  });
+
+  populateSelectors();
+  renderLegend();
+}
+renderMap();
+
+/* Smooth path generator (Catmull-Rom to Bezier)
+   pts: array of {x,y}
+   returns path d string
+*/
+function smoothPathD(pts){
+  if(pts.length===0) return '';
+  if(pts.length===1) return `M ${pts[0].x} ${pts[0].y}`;
+  // if only 2 points => straight line
+  if(pts.length===2) {
+    return `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y}`;
+  }
+  // build by converting Catmull-Rom to Bezier
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for(let i=0;i<pts.length-1;i++){
+    const p0 = i>0 ? pts[i-1] : pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i+1];
+    const p3 = i+2<pts.length ? pts[i+2] : pts[i+1];
+
+    const b1x = p1.x + (p2.x - p0.x) / 6;
+    const b1y = p1.y + (p2.y - p0.y) / 6;
+    const b2x = p2.x - (p3.x - p1.x) / 6;
+    const b2y = p2.y - (p3.y - p1.y) / 6;
+
+    d += ` C ${b1x} ${b1y}, ${b2x} ${b2y}, ${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
+/* ---- UI: selectors, legend ---- */
+const fromSelect = document.getElementById('fromSelect');
+const toSelect = document.getElementById('toSelect');
+function populateSelectors(){
+  const keys = Object.keys(stations);
+  fromSelect.innerHTML = ''; toSelect.innerHTML = '';
+  keys.forEach(id=>{
+    const op1 = document.createElement('option'); op1.value=id; op1.textContent = stations[id].name;
+    const op2 = document.createElement('option'); op2.value=id; op2.textContent = stations[id].name;
+    fromSelect.appendChild(op1); toSelect.appendChild(op2);
+  });
+}
+
+function renderLegend(){
+  const legend = document.getElementById('legend');
+  legend.innerHTML='';
+  lines.forEach(l=>{
+    const item = document.createElement('div'); item.className='item';
+    const dot = document.createElement('div'); dot.className='dot'; dot.style.background = l.color;
+    item.appendChild(dot);
+    const label = document.createElement('div'); label.textContent = l.name;
+    item.appendChild(label);
+    legend.appendChild(item);
+  });
+}
+
+/* ---- Tooltip ---- */
+const tooltip = document.getElementById('tooltip');
+function showTooltip(e, text){
+  tooltip.textContent = text;
+  tooltip.classList.remove('hidden');
+  const rect = document.getElementById('mapWrap').getBoundingClientRect();
+  tooltip.style.left = (e.clientX - rect.left) + 'px';
+  tooltip.style.top = (e.clientY - rect.top) + 'px';
+}
+function hideTooltip(){ tooltip.classList.add('hidden'); }
+
+/* ---- Station click (быстрая установка в селектор A/B) ---- */
+let lastClicked = 0;
+function onStationClick(id){
+  if(lastClicked%2===0) {
+    fromSelect.value = id;
+  } else {
+    toSelect.value = id;
+  }
+  lastClicked++;
+}
+
+/* ---- Маршрут (BFS) ---- */
+function findRoute(startId, endId){
+  if(startId===endId) return [startId];
+  const q = [startId];
+  const prev = {}; prev[startId]=null;
+  while(q.length){
+    const u = q.shift();
+    for(const v of graph[u]){
+      if(!(v in prev)){
+        prev[v]=u; q.push(v);
+        if(v===endId){
+          // build path
+          const path = [];
+          let cur = v;
+          while(cur){ path.push(cur); cur=prev[cur]; }
+          return path.reverse();
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/* ---- Подсветка маршрута: рисуем route line по координатам станций ---- */
+function highlightRoute(pathIds){
+  routeGroup.innerHTML='';
+  if(!pathIds || pathIds.length<2) return;
+  // build route path d by connecting center of stations in order
+  const pts = pathIds.map(id=>({x:stations[id].x, y:stations[id].y}));
+  const d = smoothPathD(pts);
+  const route = document.createElementNS(svgNS,'path');
+  route.classList.add('route-line','overlay');
+  route.setAttribute('d', d);
+  // color gradient: make it multi-color by segments of lines traversed
+  // For simplicity: white stroke with opacity and outer stroke with accent
+  route.setAttribute('stroke','#ffffff');
+  routeGroup.appendChild(route);
+
+  // thinner colored overlay following lines (approximate by segments)
+  const segPath = document.createElementNS(svgNS,'path');
+  segPath.classList.add('route-line');
+  segPath.setAttribute('d', d);
+  segPath.setAttribute('stroke-width',6);
+  segPath.setAttribute('stroke', getColorForPath(pathIds));
+  segPath.setAttribute('opacity', '1');
+  routeGroup.appendChild(segPath);
+
+  // also bring stations on path to "active" visual
+  pathIds.forEach(id=>{
+    const node = mapGroup.querySelector(`g.station-node[data-id="${id}"]`);
+    if(node){
+      const c = node.querySelector('circle');
+      c.setAttribute('fill','#fff');
+      c.setAttribute('r', (lines.filter(l=>l.stations.includes(id)).length>1) ? 8 : 6);
+      c.setAttribute('stroke', '#000');
+      c.setAttribute('stroke-width',1.8);
+    }
+  });
+}
+
+/* choose a color for the whole path by majority of lines used (simple heuristic) */
+function getColorForPath(pathIds){
+  // count line occurrences
+  const cnt = {};
+  for(let i=0;i<pathIds.length-1;i++){
+    const a=pathIds[i], b=pathIds[i+1];
+    // find line that contains both consecutively
+    const l = lines.find(L=>{
+      for(let j=0;j<L.stations.length-1;j++){
+        if((L.stations[j]===a && L.stations[j+1]===b) || (L.stations[j]===b && L.stations[j+1]===a)) return true;
+      }
+      return false;
+    });
+    if(l) cnt[l.id] = (cnt[l.id]||0)+1;
+  }
+  const top = Object.keys(cnt).sort((x,y)=>cnt[y]-cnt[x])[0];
+  return top ? (lines.find(l=>l.id===top).color) : '#ffffff';
+}
+
+/* ---- Кнопки ---- */
+document.getElementById('findRoute').addEventListener('click', ()=>{
+  const from = fromSelect.value, to = toSelect.value;
+  if(!from || !to) return alert('Выберите станции A и B');
+  const path = findRoute(from,to);
+  if(!path) return alert('Маршрут не найден');
+  // reset some visual states
+  resetStationStyles();
+  highlightRoute(path);
+});
+document.getElementById('clearRoute').addEventListener('click', ()=>{
+  routeGroup.innerHTML=''; resetStationStyles();
+});
+function resetStationStyles(){
+  mapGroup.querySelectorAll('circle.station').forEach(c=>{
+    c.setAttribute('r', c.classList.contains('station-transfer') ? 6.5 : 4.5);
+    c.setAttribute('fill','#fff');
+    c.setAttribute('stroke','#111');
+    c.setAttribute('stroke-width',1.5);
+  });
+}
+
+/* ---- Пан и зум для SVG ---- */
+const svg = document.getElementById('mapSvg');
+const g = document.getElementById('mapGroup');
+let view = { x:0, y:0, scale:1 }; // transform state
+function updateTransform(){
+  g.setAttribute('transform', `translate(${view.x},${view.y}) scale(${view.scale})`);
+  // routeGroup should follow same transform
+  routeGroup.setAttribute('transform', `translate(${view.x},${view.y}) scale(${view.scale})`);
+}
+updateTransform();
+
+let dragging=false, lastPos={x:0,y:0};
+svg.addEventListener('pointerdown', (e)=>{
+  dragging=true; svg.style.cursor='grabbing'; lastPos={x:e.clientX, y:e.clientY}; svg.setPointerCapture(e.pointerId);
+});
+window.addEventListener('pointerup', (e)=>{
+  dragging=false; svg.style.cursor='default';
+});
+window.addEventListener('pointermove', (e)=>{
+  if(!dragging) return;
+  const dx = (e.clientX - lastPos.x)/view.scale;
+  const dy = (e.clientY - lastPos.y)/view.scale;
+  view.x += dx; view.y += dy;
+  lastPos = {x:e.clientX, y:e.clientY};
+  updateTransform();
+});
+
+/* wheel zoom */
+svg.addEventListener('wheel', (e)=>{
+  e.preventDefault();
+  const delta = -e.deltaY;
+  const zoomFactor = delta>0 ? 1.08 : 0.92;
+  const prevScale = view.scale;
+  view.scale *= zoomFactor;
+  if(view.scale<0.3) view.scale=0.3;
+  if(view.scale>4) view.scale=4;
+  // optional: zoom to mouse position (keeps point under cursor fixed)
+  const rect = svg.getBoundingClientRect();
+  const mx = (e.clientX - rect.left);
+  const my = (e.clientY - rect.top);
+  view.x -= (mx/prevScale - mx/view.scale);
+  view.y -= (my/prevScale - my/view.scale);
+  updateTransform();
+}, { passive:false });
+
+document.getElementById('resetView').addEventListener('click', ()=>{
+  view = { x:0, y:0, scale:1 }; updateTransform(); routeGroup.innerHTML=''; resetStationStyles();
+});
+document.getElementById('zoomIn').addEventListener('click', ()=>{ view.scale *= 1.12; if(view.scale>4) view.scale=4; updateTransform(); });
+document.getElementById('zoomOut').addEventListener('click', ()=>{ view.scale *= 0.88; if(view.scale<0.3) view.scale=0.3; updateTransform(); });
+
+/* ---- утилиты: обновить карту при изменениях данных ---- */
+function rebuildAll(){
+  buildGraph();
+  renderMap();
+  resetStationStyles();
+}
+
+/* Expose a simple API to console for adding stations/lines and rerendering:
+   Примеры:
+     addStation({id:'s9',name:'Новая', x:100, y:100})
+     addLine({id:'green', name:'Зелёная', color:'#1db954', stations:['s9','s1']})
+     rebuildAll()
+*/
+window.addStation = function(st){ stations[st.id]=st; };
+window.addLine = function(line){ lines.push(line); };
+window.rebuildAll = rebuildAll;
+
+/* small live clock*/
+(function updateClock(){
+  const d=new Date(); const mm = String(d.getMinutes()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${d.getHours()}:${mm}`;
+  setTimeout(updateClock, 1000*30);
+})();
+
+</script>
+</body>
+</html>
