@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Метрополитен</title>
+<title>КБшерский Метрополитен</title>
 
 <style>
   :root{
@@ -213,9 +213,10 @@
    1. СТАНЦИИ
    =============================================== */
 const stations = {
-  s1:{name:"Академическая", x:480, y:370},
+  s1:{name:"Академическая", x:480, y:280},
   s2:{name:"Гольяново", x:390, y:340},
-  s3:{name:"Capital", x:400, y:100},
+  s4:{name:"ПельменьБург(СТРОЙКА)", x:200, y:420},
+  s3:{name:"Capital(СТРОЙКА)", x:400, y:100},
 };
 
 /* ===============================================
@@ -224,7 +225,7 @@ const stations = {
 const lines = [
   {name:"Оранжевая", color:"#ff8a00", stations:["s1"]},
   {name:"Красная", color:"#d62828", stations:["s3","s1"]},
-  {name:"Чёрная", color:"#444444", stations:["s2","s1"]},
+  {name:"Чёрная", color:"#444444", stations:["s4","s2","s1"]},
 ];
 
 const mapGroup = document.getElementById("mapGroup");
