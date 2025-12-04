@@ -2,13 +2,13 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
-<title>КБшерский Метрополитен</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Метрополитен</title>
 
 <style>
   :root{
     --bg:#0f0f0f;
-    --panel:#111214ee;
+    --panel:#111214cc;
     --accent:#00c2a8;
     --muted:#9aa0a6;
   }
@@ -17,111 +17,89 @@
     margin:0;
     height:100%;
     background:var(--bg);
-    font-family: -apple-system, system-ui, "SF Pro Text", Roboto;
     color:#fff;
-    overflow:hidden;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto;
   }
 
-  /* --- контейнер карты --- */
+  .app{
+    display:flex;
+    height:100vh;
+    gap:16px;
+    padding:16px;
+    box-sizing:border-box;
+  }
+
   .map-wrap{
-    position:absolute;
-    inset:0;
+    flex:1;
+    position:relative;
     overflow:hidden;
+    border-radius:12px;
+    background:#000;
   }
 
+  /* КАРТА — теперь точно НЕ перекрывает svg */
   #bgImage{
     position:absolute;
     inset:0;
     width:100%;
     height:100%;
-    object-fit:cover;
-    opacity:0.28;
-    pointer-events:none;
+    object-fit:contain;
+    pointer-events:none;    /* важно! клики проходят сквозь */
     z-index:0;
   }
 
+  /* SVG самый верхний */
   #mapSvg{
     position:absolute;
     inset:0;
-    width:100%;
-    height:100%;
     z-index:10;
   }
 
-  /* --- нижняя панель как в приложении --- */
-  .bottom-panel{
-    position:absolute;
-    left:0;
-    right:0;
-    bottom:0;
-    padding:16px 20px 32px;
+  .panel{
+    width:320px;
     background:var(--panel);
-    backdrop-filter:blur(20px);
-    border-radius:18px 18px 0 0;
+    padding:16px;
+    border-radius:12px;
     display:flex;
     flex-direction:column;
-    gap:12px;
-    box-shadow:0 -10px 30px #0008;
+    gap:10px;
   }
 
   .select{
     width:100%;
-    padding:14px;
-    border-radius:12px;
+    padding:8px;
+    border-radius:8px;
     border:1px solid #333;
     background:#000;
     color:#fff;
-    font-size:16px;
   }
 
   .btn{
-    padding:14px;
-    border-radius:12px;
-    background:var(--accent);
+    padding:10px;
+    border-radius:8px;
     border:0;
-    font-size:16px;
+    background:var(--accent);
     font-weight:700;
-    color:#000;
+    cursor:pointer;
   }
 
   .btn2{
-    padding:14px;
-    border-radius:12px;
-    background:#333;
+    padding:10px;
+    border-radius:8px;
     border:0;
-    font-size:15px;
+    background:#444;
+    color:#fff;
+    cursor:pointer;
   }
 
   .timeBox{
+    padding:12px;
     background:#00000055;
-    padding:14px;
-    font-size:18px;
-    border-radius:12px;
+    border-radius:8px;
+    font-size:17px;
     text-align:center;
   }
 
-  /* Навигация снизу */
-  .nav{
-    position:absolute;
-    bottom:0;
-    left:0;
-    width:100%;
-    height:62px;
-    background:#111214cc;
-    backdrop-filter:blur(20px);
-    display:flex;
-    justify-content:space-around;
-    align-items:center;
-    border-top:1px solid #222;
-  }
-
-  .nav-item{
-    text-align:center;
-    font-size:12px;
-    color:var(--muted);
-  }
-
-  /* --- линии метро --- */
   .line{
     fill:none;
     stroke-width:6;
@@ -131,15 +109,16 @@
   .station{
     fill:#fff;
     stroke:#000;
-    stroke-width:2;
+    stroke-width:2px;
+    cursor:pointer;
   }
 
   .station-small{ r:5; }
   .station-transfer{ r:7; }
 
   .station-label{
-    fill:#fff;
     font-size:12px;
+    fill:#fff;
     pointer-events:none;
   }
 
@@ -148,79 +127,92 @@
     stroke:#fff;
     stroke-width:8;
   }
+
 </style>
 </head>
 
 <body>
 
-<div class="map-wrap">
-  <img id="bgImage" src="metro.png">
+<div class="app">
 
-  <svg id="mapSvg" viewBox="-200 -200 1200 1200">
-    <g id="mapGroup"></g>
-    <g id="routeGroup"></g>
-  </svg>
-</div>
+  <div class="map-wrap">
+    <img id="bgImage" src="img/metro.png">
 
-<!-- нижняя панель -->
-<div class="bottom-panel">
-  <select id="fromSel" class="select"></select>
-  <select id="toSel" class="select"></select>
-  
-  <button id="goBtn" class="btn">Построить маршрут</button>
-  <button id="clrBtn" class="btn2">Очистить</button>
+    <svg id="mapSvg" viewBox="-200 -200 1200 1200">
+      <g id="mapGroup"></g>
+      <g id="routeGroup"></g>
+    </svg>
+  </div>
 
-  <div id="timeBox" class="timeBox">Время: —</div>
-</div>
+  <div class="panel">
+    <select id="fromSel" class="select"></select>
+    <select id="toSel" class="select"></select>
 
-<!-- панель навигации -->
-<div class="nav">
-  <div class="nav-item">Маршрут</div>
-  <div class="nav-item">Кабинет</div>
-  <div class="nav-item">Город</div>
-  <div class="nav-item">Новости</div>
+    <button id="goBtn" class="btn">Построить маршрут</button>
+    <button id="clrBtn" class="btn2">Очистить</button>
+
+    <div id="timeBox" class="timeBox">Время: —</div>
+  </div>
+
 </div>
 
 <script>
-/* === Твои данные станций === */
+/* ===============================================
+   1. СТАНЦИИ (редактируешь тут)
+   =============================================== */
 const stations = {
   s1:{name:"Академическая", x:480, y:370},
   s5:{name:"Гольяново", x:390, y:340},
   s6:{name:"Capital", x:400, y:100},
 };
 
+/* ===============================================
+   2. ВЕТКИ (редактируешь тут)
+   =============================================== */
 const lines = [
   {name:"Оранжевая", color:"#ff8a00", stations:["s1"]},
   {name:"Красная", color:"#d62828", stations:["s6","s1"]},
-  {name:"Чёрная", color:"#444", stations:["s5","s1"]},
+  {name:"Чёрная", color:"#444444", stations:["s5","s1"]},
 ];
+
+/* ----------------------------------------------- */
 
 const mapGroup = document.getElementById("mapGroup");
 const routeGroup = document.getElementById("routeGroup");
-const svgNS="http://www.w3.org/2000/svg";
+const svgNS = "http://www.w3.org/2000/svg";
 
 const fromSel=document.getElementById("fromSel");
 const toSel=document.getElementById("toSel");
 
-/* Граф */
-const graph={};
-Object.keys(stations).forEach(id=>graph[id]=new Set());
+/* ===============================================
+   СТРОИМ ГРАФ
+   =============================================== */
+const graph = {};
+Object.keys(stations).forEach(id => graph[id]=new Set());
 
 lines.forEach(l=>{
-  for(let i=0;i<l.stations.length-1;i++){
-    const a=l.stations[i], b=l.stations[i+1];
-    graph[a].add(b); graph[b].add(a);
+  for (let i=0;i<l.stations.length-1;i++){
+    const a = l.stations[i];
+    const b = l.stations[i+1];
+    graph[a].add(b);
+    graph[b].add(a);
   }
 });
 
-/* --- рисуем карту --- */
-function makePath(ids){
-  return ids.map((id,i)=>(i===0?"M":"L")+" "+stations[id].x+" "+stations[id].y).join(" ");
+
+/* ===============================================
+   РИСОВКА КАРТЫ
+   =============================================== */
+function makePath(idList){
+  return idList
+    .map((id,i)=> (i===0 ? "M":"L") + " " + stations[id].x + " " + stations[id].y)
+    .join(" ");
 }
 
 function drawMap(){
-  mapGroup.innerHTML="";
+  mapGroup.innerHTML = "";
 
+  // линии
   lines.forEach(l=>{
     const p=document.createElementNS(svgNS,"path");
     p.setAttribute("class","line");
@@ -229,24 +221,30 @@ function drawMap(){
     mapGroup.appendChild(p);
   });
 
+  // станции
   Object.keys(stations).forEach(id=>{
-    const st=stations[id];
+    const st = stations[id];
+
     const g=document.createElementNS(svgNS,"g");
     g.setAttribute("transform",`translate(${st.x},${st.y})`);
     g.dataset.id=id;
 
-    const cnt=lines.filter(L=>L.stations.includes(id)).length;
+    // определяем тип: пересадочная?
+    const count = lines.filter(L=>L.stations.includes(id)).length;
+
     const circle=document.createElementNS(svgNS,"circle");
-    circle.classList.add("station", cnt>1?"station-transfer":"station-small");
+    circle.classList.add("station");
+    circle.classList.add(count>1 ? "station-transfer":"station-small");
 
     const txt=document.createElementNS(svgNS,"text");
     txt.classList.add("station-label");
     txt.setAttribute("x",10);
     txt.setAttribute("y",4);
-    txt.textContent=st.name;
+    txt.textContent = st.name;
 
-    g.append(circle,txt);
-    g.onclick=()=>stationClick(id);
+    g.append(circle, txt);
+
+    g.addEventListener("click",()=>stationClick(id));
 
     mapGroup.appendChild(g);
   });
@@ -256,25 +254,38 @@ function drawMap(){
 
 drawMap();
 
-/* выбор станции тапом */
-let clickIndex=0;
+
+/* ===============================================
+   ВЫБОР СТАНЦИИ КЛИКОМ
+   =============================================== */
+let clickIndex = 0;
 function stationClick(id){
-  if(clickIndex%2===0) fromSel.value=id;
-  else toSel.value=id;
+  if(clickIndex % 2 === 0){
+    fromSel.value = id;
+  } else {
+    toSel.value = id;
+  }
   clickIndex++;
 }
 
-/* селекты */
+
+/* ===============================================
+   SELECTЫ
+   =============================================== */
 function fillSelectors(){
   fromSel.innerHTML="";
   toSel.innerHTML="";
+
   Object.keys(stations).forEach(id=>{
     fromSel.add(new Option(stations[id].name,id));
     toSel.add(new Option(stations[id].name,id));
   });
 }
 
-/* BFS */
+
+/* ===============================================
+   BFS поиск маршрута
+   =============================================== */
 function findRoute(start,end){
   const q=[start];
   const prev={};
@@ -288,8 +299,8 @@ function findRoute(start,end){
         q.push(v);
         if(v===end){
           const path=[];
-          let c=v;
-          while(c){path.push(c); c=prev[c];}
+          let cur=v;
+          while(cur){ path.push(cur); cur=prev[cur]; }
           return path.reverse();
         }
       }
@@ -298,42 +309,58 @@ function findRoute(start,end){
   return null;
 }
 
+/* Время: 2 мин за перегон, 3 мин за пересадку */
+function computeTime(path){
+  let time = (path.length-1)*2;
+  for(let i=1;i<path.length-1;i++){
+    const a=path[i-1], b=path[i], c=path[i+1];
+    if(!sameLine(a,b,c)) time+=3;
+  }
+  return time;
+}
+
 function sameLine(a,b,c){
-  return lines.some(L=>{
-    const s=L.stations;
-    return s.includes(a)&&s.includes(b)&&s.includes(c);
+  return lines.some(l=>{
+    const s=l.stations;
+    return s.includes(a) && s.includes(b) && s.includes(c);
   });
 }
 
-function computeTime(path){
-  let t=(path.length-1)*2;
-  for(let i=1;i<path.length-1;i++){
-    if(!sameLine(path[i-1], path[i], path[i+1])) t+=3;
-  }
-  return t;
-}
-
+/* ===============================================
+   ОТРИСОВКА МАРШРУТА
+   =============================================== */
 function drawRoute(path){
   routeGroup.innerHTML="";
   if(!path) return;
+
   const p=document.createElementNS(svgNS,"path");
   p.setAttribute("d",makePath(path));
   p.setAttribute("class","route-line");
   routeGroup.appendChild(p);
 }
 
-document.getElementById("goBtn").onclick=()=>{
-  const A=fromSel.value, B=toSel.value;
-  const r=findRoute(A,B);
-  if(!r){ alert("Маршрут не найден"); return; }
-  drawRoute(r);
-  timeBox.textContent="Время: "+computeTime(r)+" мин";
+
+/* ===============================================
+   КНОПКИ
+   =============================================== */
+document.getElementById("goBtn").onclick = ()=>{
+  const A=fromSel.value;
+  const B=toSel.value;
+  if(!A || !B) return;
+
+  const route=findRoute(A,B);
+  if(!route){ alert("Маршрут не найден"); return; }
+
+  drawRoute(route);
+  document.getElementById("timeBox").textContent =
+    "Время: " + computeTime(route) + " мин";
 };
 
-document.getElementById("clrBtn").onclick=()=>{
+document.getElementById("clrBtn").onclick = ()=>{
   routeGroup.innerHTML="";
-  timeBox.textContent="Время: —";
+  document.getElementById("timeBox").textContent="Время: —";
 };
+
 </script>
 </body>
 </html>
