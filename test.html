@@ -339,6 +339,59 @@ function drawRoute(path){
   routeGroup.appendChild(p);
 }
 
+/* ===========================================
+   МОБИЛЬНАЯ ВЕРСИЯ
+   =========================================== */
+@media (max-width: 768px){
+
+  .app{
+    flex-direction:column;
+    height:auto;
+  }
+
+  .map-wrap{
+    height:70vh;
+    width:100%;
+  }
+
+  #mapSvg{
+    width:100%;
+    height:100%;
+  }
+
+  .panel{
+    width:100%;
+    box-sizing:border-box;
+    flex-direction:column;
+    gap:12px;
+    padding:16px;
+  }
+
+  .select{
+    font-size:16px;
+    padding:12px;
+  }
+
+  .btn, .btn2{
+    font-size:16px;
+    padding:12px;
+  }
+
+  .timeBox{
+    font-size:18px;
+    padding:14px;
+  }
+
+  /* Размеры станций и текста для мобильных */
+  .station-small{ r:7; }
+  .station-transfer{ r:9; }
+
+  .station-label{
+    font-size:14px;
+  }
+
+}
+
 
 /* ===============================================
    КНОПКИ
